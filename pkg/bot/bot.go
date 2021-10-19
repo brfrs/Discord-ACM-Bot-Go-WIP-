@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/bot/cmds"
+	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/bot/interactions"
 )
 
 // Env vars for the app to use
@@ -95,13 +96,13 @@ func (bot *Bot) New() error {
 	return nil
 }
 
-func verifyInteraction(bot *Bot, r *http.Request) (bool, error) {
-	sigEntry := r.Header[sig_header]
+func verifyInteraction(bot *Bot, header http.Header, body []byte) (bool, error) {
+	sigEntry := header[sig_header]
 	if sigEntry == nil || len(sigEntry) != 1 {
 		return false, fmt.Errorf("request error: signature header missing or unexpected number of entries.")
 	}
-	sig, err := hex.DecodeString(sigEntry[0])
 
+	sig, err := hex.DecodeString(sigEntry[0])
 	if err != nil {
 		return false, err
 	}
@@ -110,20 +111,11 @@ func verifyInteraction(bot *Bot, r *http.Request) (bool, error) {
 		return false, fmt.Errorf("request error: signature size doesn't match ed25519 private key size. Size of key: %d", len(sig))
 	}
 
-	timestampEntry := r.Header[timestamp_header]
+	timestampEntry := header[timestamp_header]
 	if timestampEntry == nil || len(timestampEntry) != 1 {
 		return false, fmt.Errorf("request error: timestamp header missing or unexpected number of entries.")
 	}
 	timestamp := timestampEntry[0]
-
-	fmt.Printf("Sig: %s\n", sigEntry[0])
-	fmt.Printf("Timestamp: %s\n", timestamp)
-
-	body, err := io.ReadAll(r.Body)
-
-	if err != nil {
-		return false, err
-	}
 
 	message := append([]byte(timestamp), body...)
 	return ed25519.Verify(bot.appPublicKey, message, sig), nil
@@ -139,12 +131,22 @@ func (bot *Bot) Serve() error {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			fmt.Printf("Error parsing form: %v\n", err)
+		fmt.Printf("Request received. Method: %s\n", r.Method)
+
+		body, err := io.ReadAll(r.Body)
+
+		if r.Method != http.MethodPost {
+			fmt.Println("Error with request method. Discord only sends POST requests.")
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		if err != nil {
+			fmt.Printf("Error encountered while reading the body of the request: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		fmt.Printf("Request received. Method: %s\n", r.Method)
-		verified, err := verifyInteraction(bot, r)
+
+		verified, err := verifyInteraction(bot, r.Header, body)
 
 		if err != nil {
 			fmt.Printf("Error encountered trying to verify interaction: %v\n", err)
@@ -153,17 +155,20 @@ func (bot *Bot) Serve() error {
 		}
 
 		if !verified {
-			fmt.Println("Error encountered trying to verify message. Returning 401")
+			fmt.Println("Error: message failed verification. Returning 401")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		encoder := json.NewEncoder(w)
-		responseData := map[string]int{
-			"type": 1,
+		var interaction interactions.Interaction
+		err = json.Unmarshal(body, &interaction)
+		fmt.Println(string(body))
+		if err != nil {
+			fmt.Printf("Error unmarshalling interaction: %v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
-
-		encoder.Encode(responseData)
+		interactions.HandleInteraction(interaction, w)
 	})
 
 	return http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", bot.port), nil)

@@ -29,9 +29,3 @@ type AppCmd struct {
 	Options            []AppCmdOption `json:"options"`
 	DefaultPermissions bool           `json:"default_permissions"`
 }
-
-type Interaction struct {
-	Id    string `json:"id"`
-	AppId string `json:"id"`
-	Type  int    `json:"type"`
-}
