@@ -33,7 +33,7 @@ func (bot *Bot) addNewChannel(guildID, channelID string) error {
 
 func (bot *Bot) getAllChannels() ([]string, error) {
 	result := make([]string, 0)
-	sql := "SELECT guild_id FROM guild;"
+	sql := "SELECT channel_id FROM channel;"
 	rows, err := bot.DB.Query(context.Background(), sql)
 
 	defer rows.Close()
@@ -92,6 +92,28 @@ func (bot *Bot) registerUser(userID, guildID, leetcodeUser string) error {
 	return nil
 }
 
+func (bot *Bot) getLeetCodeUser(userID string) (*string, error) {
+	var res *string
+	rows, err := bot.DB.Query(context.Background(), "SELECT leetcode_user FROM member where user_id=$1", userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows.Next() {
+		res = new(string)
+		err = rows.Scan(res)
+
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		DebugLogger.Println("No entry found.")
+	}
+
+	return res, nil
+}
+
 func (bot *Bot) getScore(userID, guildID string) (*int, error) {
 	var res *int
 	rows, err := bot.DB.Query(context.Background(), "SELECT value FROM score WHERE user_id=$1 AND guild_id=$2;", userID, guildID)
@@ -143,4 +165,27 @@ func (bot *Bot) addProblems(probs []leetcode.Problem) error {
 
 	tx.Commit(context.Background())
 	return nil
+}
+
+func (bot *Bot) getTodaysProblem(date, channelID string) (*string, error) {
+	sql := `
+	SELECT problem_slug FROM schedule WHERE channel_id=$1 AND channel_id=$2;
+	`
+
+	var res *string
+	rows, err := bot.DB.Query(context.Background(), sql, date, channelID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows.Next() {
+		res = new(string)
+		err := rows.Scan(res)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return res, nil
 }

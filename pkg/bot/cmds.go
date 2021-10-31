@@ -2,6 +2,8 @@ package bot
 
 import (
 	"fmt"
+
+	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
 )
 
 var SetupCmd = Cmd{
@@ -18,7 +20,7 @@ var SetupCmd = Cmd{
 		}
 
 		fmt.Println("Register guild commands")
-		err = RegisterGuildCmds(bot.CmdMap, []Cmd{FlexCmd, RegisterCmd}, bot.AppID, bot.Token, i.GuildID)
+		err = RegisterGuildCmds(bot.CmdMap, GuildCmds, bot.AppID, bot.Token, i.GuildID)
 		if err != nil {
 			return InteractionCallback{}, err
 		}
@@ -68,6 +70,73 @@ var RegisterCmd = Cmd{
 	},
 }
 
+var SolvedCmd = Cmd{
+	Type:              CMD_TYPE_CHAT_INPUT,
+	Name:              "solved",
+	Desc:              "Alert the channel that you have solved the problem. Good for you; take your schmeckles.",
+	Opts:              nil,
+	DefaultPermission: true,
+	Handler: func(i Interaction, bot *Bot) (InteractionCallback, error) {
+		userID := i.MemberInfo.User.ID
+		channelID := i.ChannelID
+
+		if userID == "" {
+			return InteractionCallback{}, fmt.Errorf("expected valid user for this interaction: %+v", i)
+		}
+
+		leetcodeUser, err := bot.getLeetCodeUser(userID)
+
+		if err != nil {
+			return InteractionCallback{}, err
+		}
+
+		if leetcodeUser == nil {
+			return InteractionCallback{
+				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
+				Data: &CallbackData{
+					Content: "You are not registered. Register with '/setup {LeetCode username}'",
+				},
+			}, nil
+		}
+		prob, err := bot.getTodaysProblem(getDate(), channelID)
+
+		if err != nil {
+			return InteractionCallback{}, err
+		}
+
+		if prob == nil {
+			return InteractionCallback{
+				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
+				Data: &CallbackData{
+					Content: "No problem scheduled for today",
+				},
+			}, nil
+		}
+
+		solved, err := leetcode.FindIfUserCompletedLeetCodeProblem(*leetcodeUser, *prob)
+
+		if err != nil {
+			return InteractionCallback{}, err
+		}
+
+		if solved {
+			return InteractionCallback{
+				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
+				Data: &CallbackData{
+					Content: "Solved!",
+				},
+			}, nil
+		} else {
+			return InteractionCallback{
+				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
+				Data: &CallbackData{
+					Content: "Not solved!",
+				},
+			}, nil
+		}
+	},
+}
+
 var FlexCmd = Cmd{
 	Type:              CMD_TYPE_CHAT_INPUT,
 	Name:              "flex",
@@ -109,4 +178,5 @@ var GlobalCmds = []Cmd{
 var GuildCmds = []Cmd{
 	RegisterCmd,
 	FlexCmd,
+	SolvedCmd,
 }

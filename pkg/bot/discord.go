@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -158,10 +159,18 @@ type InteractionCallback struct {
 	Data *CallbackData `json:"data"`
 }
 
+type MessageParams struct {
+	Content string  `json:"content"`
+	TTS     bool    `json:"tts"`
+	Embeds  []Embed `json:"embeds,omitempty"`
+	// we are skipping the rest of this for now.
+}
+
 type CmdMap = map[string]CmdHandler
 
 const GLOBAL_APP_CMD_URL = "https://discord.com/api/v8/applications/%s/commands"
 const GUILD_APP_CMD_URL = "https://discord.com/api/v8/applications/%s/guilds/%s/commands"
+const CHANNEL_MSG_CREATE_URL = "https://discord.com/api/v8/channels/%s/messages"
 
 func registerCmds(cmds []Cmd, url, appId, appToken string) error {
 	for _, cmd := range cmds {
@@ -221,6 +230,39 @@ func RegisterGuildCmds(cmdMap CmdMap, cmds []Cmd, appId, appToken, guildId strin
 
 	for _, cmd := range cmds {
 		cmdMap[cmd.Name] = cmd.Handler
+	}
+
+	return nil
+}
+
+func PostToChannel(channelID, appToken string, msg MessageParams) error {
+	url := fmt.Sprintf(CHANNEL_MSG_CREATE_URL, channelID)
+
+	data, err := json.Marshal(msg)
+
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	req.Header.Add("Authorization", fmt.Sprintf("Bot %s", appToken))
+	req.Header.Add("Content-Type", "application/json")
+
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	DebugLogger.Printf(string(body))
+
+	if resp.StatusCode != 201 && resp.StatusCode != 200 {
+		return fmt.Errorf("response to msg creation not 200 nor 201. Response code: %d", resp.StatusCode)
 	}
 
 	return nil

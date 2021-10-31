@@ -131,6 +131,12 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 		return err
 	}
 
+	err = bot.PostDailiesToChannels()
+
+	if err != nil {
+		return err
+	}
+
 	InfoLogger.Println("Bot init'd")
 	bot.Started = true
 	return nil
@@ -267,4 +273,37 @@ func (bot *Bot) GetProblems() error {
 	}
 
 	return bot.addProblems(probs)
+}
+
+func (bot *Bot) PostDailiesToChannels() error {
+	channels, err := bot.getAllChannels()
+
+	if err != nil {
+		return err
+	}
+
+	date := getDate()
+
+	for _, channel := range channels {
+		prob, err := bot.getTodaysProblem(date, channel)
+
+		if err != nil {
+			return err
+		}
+
+		if prob != nil {
+			continue
+		}
+
+		msg := MessageParams{
+			Content: "FOO",
+		}
+
+		err = PostToChannel(channel, bot.Token, msg)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
