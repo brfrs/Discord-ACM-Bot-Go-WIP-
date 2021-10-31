@@ -2,6 +2,8 @@ package bot
 
 import (
 	"context"
+
+	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
 )
 
 func (bot *Bot) addNewChannel(guildID, channelID string) error {
@@ -100,7 +102,7 @@ func (bot *Bot) getScore(userID, guildID string) (*int, error) {
 
 	defer rows.Close()
 
-	if rows.Next() {
+	if rows.Next() { // Needs to be called to prep the values if there are any
 		res = new(int)
 		err = rows.Scan(res)
 
@@ -112,4 +114,33 @@ func (bot *Bot) getScore(userID, guildID string) (*int, error) {
 	}
 
 	return res, nil
+}
+
+func (bot *Bot) addProblems(probs []leetcode.Problem) error {
+	tx, err := bot.DB.Begin(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback(context.Background())
+
+	// Possible deadlock?
+	sql := `
+	INSERT INTO problem (slug, title, total_accept, total_subs, difficulty) VALUES ($1::VARCHAR, $2::VARCHAR, $3, $4, $5)
+	ON CONFLICT ON CONSTRAINT problem_pkey 
+	DO
+		UPDATE SET title=$2::VARCHAR, total_accept=$3, total_subs=$4, difficulty=$5;
+	`
+
+	for _, prob := range probs {
+		if prob.PaidOnly {
+			continue
+		}
+
+		tx.Exec(context.Background(), sql, prob.Stat.Slug, prob.Stat.Title, prob.Stat.TotalAccepts, prob.Stat.TotalSubmissions, prob.Difficulty.Level)
+	}
+
+	tx.Commit(context.Background())
+	return nil
 }

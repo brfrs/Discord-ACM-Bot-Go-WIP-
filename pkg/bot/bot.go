@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
 	"github.com/jackc/pgx/v4"
 )
 
@@ -122,6 +123,12 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	err = bot.GetProblems()
+
+	if err != nil {
+		return err
 	}
 
 	InfoLogger.Println("Bot init'd")
@@ -250,4 +257,14 @@ func (bot *Bot) Serve() error {
 
 	InfoLogger.Printf("Starting to serve on port=%d...\n", bot.Port)
 	return http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", bot.Port), nil)
+}
+
+func (bot *Bot) GetProblems() error {
+	probs, err := leetcode.GetLeetCodeProblems()
+
+	if err != nil {
+		return err
+	}
+
+	return bot.addProblems(probs)
 }
