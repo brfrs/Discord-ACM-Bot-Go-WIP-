@@ -43,6 +43,31 @@ func (bot *Bot) getAllChannels() ([]string, error) {
 	}
 
 	for rows.Next() {
+		var channelID string
+		err = rows.Scan(&channelID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, channelID)
+	}
+
+	return result, nil
+}
+
+func (bot *Bot) getAllGuilds() ([]string, error) {
+	result := make([]string, 0)
+	sql := "SELECT guild_id FROM guild;"
+	rows, err := bot.DB.Query(context.Background(), sql)
+
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
 		var guildID string
 		err = rows.Scan(&guildID)
 

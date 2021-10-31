@@ -105,20 +105,20 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 		return err
 	}
 
-	err = RegisterGlobalCmds(bot.CmdMap, GlobalCmds, bot.AppID, bot.Token)
+	err = bot.RegisterGlobalCmds(GlobalCmds)
 
 	if err != nil {
 		return err
 	}
 
-	guildID, err := bot.getAllChannels()
+	guilds, err := bot.getAllGuilds()
 
 	if err != nil {
 		return err
 	}
 
-	for _, guild := range guildID {
-		err = RegisterGuildCmds(bot.CmdMap, GuildCmds, bot.AppID, bot.Token, guild)
+	for _, guild := range guilds {
+		err = bot.RegisterGuildCmds(GuildCmds, guild)
 
 		if err != nil {
 			return err
@@ -273,6 +273,30 @@ func (bot *Bot) GetProblems() error {
 	}
 
 	return bot.addProblems(probs)
+}
+
+func (bot *Bot) AddHandlers(cmds []Cmd) {
+	for _, cmd := range cmds {
+		bot.CmdMap[cmd.Name] = cmd.Handler
+	}
+}
+
+func (bot *Bot) RegisterGlobalCmds(cmds []Cmd) error {
+	if err := RegisterGlobalCmds(cmds, bot.AppID, bot.Token); err != nil {
+		return err
+	}
+
+	bot.AddHandlers(cmds)
+	return nil
+}
+
+func (bot *Bot) RegisterGuildCmds(cmds []Cmd, guildID string) error {
+	if err := RegisterGuildCmds(cmds, bot.AppID, bot.Token, guildID); err != nil {
+		return err
+	}
+
+	bot.AddHandlers(cmds)
+	return nil
 }
 
 func (bot *Bot) PostDailiesToChannels() error {

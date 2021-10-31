@@ -20,7 +20,7 @@ var SetupCmd = Cmd{
 		}
 
 		fmt.Println("Register guild commands")
-		err = RegisterGuildCmds(bot.CmdMap, GuildCmds, bot.AppID, bot.Token, i.GuildID)
+		err = bot.RegisterGuildCmds(GuildCmds, i.GuildID)
 		if err != nil {
 			return InteractionCallback{}, err
 		}

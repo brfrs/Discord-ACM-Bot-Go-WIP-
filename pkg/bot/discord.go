@@ -205,7 +205,7 @@ func registerCmds(cmds []Cmd, url, appId, appToken string) error {
 	return nil
 }
 
-func RegisterGlobalCmds(cmdMap CmdMap, cmds []Cmd, appId, appToken string) error {
+func RegisterGlobalCmds(cmds []Cmd, appId, appToken string) error {
 	url := fmt.Sprintf(GLOBAL_APP_CMD_URL, appId)
 	err := registerCmds(cmds, url, appId, appToken)
 
@@ -213,23 +213,15 @@ func RegisterGlobalCmds(cmdMap CmdMap, cmds []Cmd, appId, appToken string) error
 		return err
 	}
 
-	for _, cmd := range cmds {
-		cmdMap[cmd.Name] = cmd.Handler
-	}
-
 	return nil
 }
 
-func RegisterGuildCmds(cmdMap CmdMap, cmds []Cmd, appId, appToken, guildId string) error {
+func RegisterGuildCmds(cmds []Cmd, appId, appToken, guildId string) error {
 	url := fmt.Sprintf(GUILD_APP_CMD_URL, appId, guildId)
 	err := registerCmds(cmds, url, appId, appToken)
 
 	if err != nil {
 		return err
-	}
-
-	for _, cmd := range cmds {
-		cmdMap[cmd.Name] = cmd.Handler
 	}
 
 	return nil
