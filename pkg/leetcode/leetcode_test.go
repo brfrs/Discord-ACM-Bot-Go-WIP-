@@ -1,6 +1,9 @@
 package leetcode
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 const testAccount = "brents_smurf_account"
 
@@ -41,4 +44,18 @@ func TestFindIfUserCompletedLeetCodeProblemNotAccepted(t *testing.T) {
 	if completed {
 		t.Errorf("User: %s, Problem: %s, received true, expected false", testAccount, problemName)
 	}
+}
+
+func TestGetLeetCodeProblems(t *testing.T) {
+	probs, err := GetLeetCodeProblems()
+
+	if err != nil {
+		t.Errorf("Received error %v", err)
+	}
+
+	if len(probs) == 0 {
+		t.Error("Didn't get a reasonable amount of problems.")
+	}
+
+	fmt.Printf("Found %d problems\n", len(probs))
 }
