@@ -59,3 +59,19 @@ func TestGetLeetCodeProblems(t *testing.T) {
 
 	fmt.Printf("Found %d problems\n", len(probs))
 }
+
+func TestGetLeetCodeProblemDesc(t *testing.T) {
+	desc, err := GetProblemDesc("two-sum")
+
+	if err != nil {
+		t.Errorf("Received error %v", err)
+	}
+
+	if desc.Slug != "two-sum" {
+		t.Errorf("Wrong slug found=%s, expected=%s", desc.Slug, "two-sum")
+	}
+
+	if desc.Title != "Two Sum" {
+		t.Errorf("Wrong title found %s, expected=%s", desc.Title, "Two Sum")
+	}
+}

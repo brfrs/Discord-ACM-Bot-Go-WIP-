@@ -117,13 +117,27 @@ type Data struct {
 	TargetId string `json:"target_id"`
 }
 
+const (
+	EMBED_TYPE_RICH    = "rich"
+	EMBED_TYPE_IMAGE   = "image"
+	EMBED_TYPE_VIDEO   = "video"
+	EMBED_TYPE_GIFV    = "gifv"
+	EMBED_TYPE_ARTICLE = "article"
+	EMBED_TYPE_LINK    = "link"
+)
+
 type Embed struct {
+	Title *string `json:"title,omitempty"`
+	Type  *string `json:"type,omitempty"`
+	Desc  *string `json:"description,omitempty"`
+	URL   *string `json:"url,omitempty"`
+	Color *int    `json:"color,omitempty"`
 }
 
 type Message struct {
 	Content string  `json:"content"`
 	TTS     bool    `json:"tts"`
-	Embeds  []Embed `json:"embeds"`
+	Embeds  []Embed `json:"embeds,omitempty"`
 }
 
 type Interaction struct {
@@ -157,13 +171,6 @@ type InteractionCallback struct {
 	Type int `json:"type"`
 	// data to do
 	Data *CallbackData `json:"data"`
-}
-
-type MessageParams struct {
-	Content string  `json:"content"`
-	TTS     bool    `json:"tts"`
-	Embeds  []Embed `json:"embeds,omitempty"`
-	// we are skipping the rest of this for now.
 }
 
 type CmdMap = map[string]CmdHandler
@@ -227,7 +234,7 @@ func RegisterGuildCmds(cmds []Cmd, appId, appToken, guildId string) error {
 	return nil
 }
 
-func PostToChannel(channelID, appToken string, msg MessageParams) error {
+func PostToChannel(channelID, appToken string, msg Message) error {
 	url := fmt.Sprintf(CHANNEL_MSG_CREATE_URL, channelID)
 
 	data, err := json.Marshal(msg)
@@ -235,7 +242,7 @@ func PostToChannel(channelID, appToken string, msg MessageParams) error {
 	if err != nil {
 		return err
 	}
-
+	DebugLogger.Printf("To send: %s", data)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 	req.Header.Add("Authorization", fmt.Sprintf("Bot %s", appToken))
 	req.Header.Add("Content-Type", "application/json")

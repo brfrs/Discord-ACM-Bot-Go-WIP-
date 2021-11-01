@@ -6,6 +6,6 @@ import (
 )
 
 func getDate() string {
-	now := time.Now()
-	return fmt.Sprint("%d-%d-%d", now.Year(), now.Month(), now.Day)
+	now := time.Now().In(time.Local)
+	return fmt.Sprintf("%d-%d-%d", now.Year(), now.Month(), now.Day())
 }

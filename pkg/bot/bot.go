@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 
+	html2md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
 	"github.com/jackc/pgx/v4"
 )
@@ -60,6 +61,12 @@ const (
 	sig_header       = "X-Signature-Ed25519"
 	timestamp_header = "X-Signature-Timestamp"
 )
+
+var DifficultyToColorCode = map[int]int{
+	leetcode.DIFFICULTY_EASY:   44955,
+	leetcode.DIFFICULTY_MEDIUM: 16758784,
+	leetcode.DIFFICULTY_HARD:   16723284,
+}
 
 type Bot struct {
 	AppID        string
@@ -299,32 +306,66 @@ func (bot *Bot) RegisterGuildCmds(cmds []Cmd, guildID string) error {
 	return nil
 }
 
-func (bot *Bot) PostDailiesToChannels() error {
-	channels, err := bot.getAllChannels()
+func (bot *Bot) PostDailyToChannel(date, channel string) error {
+	DebugLogger.Printf("Attempting to post daily (%s) problem to channel: %s\n", date, channel)
+	prob, err := bot.getDailyProblem(date, channel)
 
 	if err != nil {
 		return err
 	}
 
+	if prob == nil {
+		DebugLogger.Printf("No problem found.")
+		return nil
+	}
+
+	probDesc, err := leetcode.GetProblemDesc(prob.Slug)
+
+	if err != nil {
+		return err
+	}
+
+	converter := html2md.NewConverter("", true, &html2md.Options{})
+
+	md, err := converter.ConvertString(probDesc.Content)
+
+	if err != nil {
+		WarningLogger.Printf("html2md conversion failed for this string: %s", probDesc.Content)
+		md = probDesc.Content // This is a little troll on my part
+	}
+
+	problemURL := leetcode.GetProblemURL(probDesc.Slug)
+	color := DifficultyToColorCode[prob.Diff]
+
+	msg := Message{
+		Content: fmt.Sprintf("Daily Problem: %s", date),
+		Embeds: []Embed{
+			{
+				Title: &probDesc.Title,
+				Desc:  &md,
+				URL:   &problemURL,
+				Color: &color,
+			},
+		},
+		TTS: false,
+	}
+
+	DebugLogger.Printf("Posting daily prob=%s to channel=%s\n", prob.Slug, channel)
+	return PostToChannel(channel, bot.Token, msg)
+}
+
+func (bot *Bot) PostDailiesToChannels() error {
+	channels, err := bot.getAllChannels()
 	date := getDate()
 
+	DebugLogger.Printf("Today is: %s", date)
+
+	if err != nil {
+		return err
+	}
+
 	for _, channel := range channels {
-		prob, err := bot.getTodaysProblem(date, channel)
-
-		if err != nil {
-			return err
-		}
-
-		if prob != nil {
-			continue
-		}
-
-		msg := MessageParams{
-			Content: "FOO",
-		}
-
-		err = PostToChannel(channel, bot.Token, msg)
-		if err != nil {
+		if err := bot.PostDailyToChannel(date, channel); err != nil {
 			return err
 		}
 	}

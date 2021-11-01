@@ -98,7 +98,7 @@ var SolvedCmd = Cmd{
 				},
 			}, nil
 		}
-		prob, err := bot.getTodaysProblem(getDate(), channelID)
+		prob, err := bot.getDailyProblem(getDate(), channelID)
 
 		if err != nil {
 			return InteractionCallback{}, err
@@ -113,7 +113,7 @@ var SolvedCmd = Cmd{
 			}, nil
 		}
 
-		solved, err := leetcode.FindIfUserCompletedLeetCodeProblem(*leetcodeUser, *prob)
+		solved, err := leetcode.FindIfUserCompletedLeetCodeProblem(*leetcodeUser, prob.Slug)
 
 		if err != nil {
 			return InteractionCallback{}, err

@@ -36,11 +36,11 @@ func (bot *Bot) getAllChannels() ([]string, error) {
 	sql := "SELECT channel_id FROM channel;"
 	rows, err := bot.DB.Query(context.Background(), sql)
 
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		var channelID string
@@ -61,11 +61,11 @@ func (bot *Bot) getAllGuilds() ([]string, error) {
 	sql := "SELECT guild_id FROM guild;"
 	rows, err := bot.DB.Query(context.Background(), sql)
 
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		var guildID string
@@ -124,6 +124,8 @@ func (bot *Bot) getLeetCodeUser(userID string) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	if rows.Next() {
 		res = new(string)
@@ -192,25 +194,32 @@ func (bot *Bot) addProblems(probs []leetcode.Problem) error {
 	return nil
 }
 
-func (bot *Bot) getTodaysProblem(date, channelID string) (*string, error) {
-	sql := `
-	SELECT problem_slug FROM schedule WHERE channel_id=$1 AND channel_id=$2;
-	`
+type problemRow struct {
+	Slug string
+	Diff int
+}
 
-	var res *string
+func (bot *Bot) getDailyProblem(date, channelID string) (*problemRow, error) {
+	sql := "SELECT schedule.problem_slug, problem.difficulty FROM schedule LEFT OUTER JOIN problem ON schedule.problem_slug=problem.slug WHERE schedule.challenge_day=$1 AND schedule.channel_id=$2;"
+
+	var res *problemRow
 	rows, err := bot.DB.Query(context.Background(), sql, date, channelID)
 
 	if err != nil {
 		return nil, err
 	}
 
+	defer rows.Close()
+
 	if rows.Next() {
-		res = new(string)
-		err := rows.Scan(res)
+		res = new(problemRow)
+		err := rows.Scan(&res.Slug, &res.Diff)
+
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	DebugLogger.Printf("For date=%s, channelID=%s, found=%v\n", date, channelID, res != nil)
 	return res, nil
 }
