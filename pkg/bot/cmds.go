@@ -73,7 +73,7 @@ var RegisterCmd = Cmd{
 var SolvedCmd = Cmd{
 	Type:              CMD_TYPE_CHAT_INPUT,
 	Name:              "solved",
-	Desc:              "Alert the channel that you have solved the problem. Good for you; take your schmeckles.",
+	Desc:              "Alert the channel that you have solved the problem. Not that we don't trust you but we will check.",
 	Opts:              nil,
 	DefaultPermission: true,
 	Handler: func(i Interaction, bot *Bot) (InteractionCallback, error) {
@@ -94,7 +94,7 @@ var SolvedCmd = Cmd{
 			return InteractionCallback{
 				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
 				Data: &CallbackData{
-					Content: "You are not registered. Register with '/setup {LeetCode username}'",
+					Content: "You are not registered. Register with '/register {LeetCode username}'",
 				},
 			}, nil
 		}

@@ -25,6 +25,7 @@ func main() {
 		return
 	}
 
+	defer b.End()
 	err = b.Serve()
 
 	fmt.Printf("Main: \"%v\"", err)

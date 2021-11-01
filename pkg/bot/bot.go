@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	html2md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
@@ -40,6 +41,8 @@ const (
 	LOG_LEVEL_WARNING = 2
 	LOG_LEVEL_ERROR   = 3
 )
+
+const DailyPostPeriod = 5 * time.Minute
 
 func InitLoggers(logLevel int, outfile io.Writer) {
 	if LOG_LEVEL_DEBUG >= logLevel {
@@ -76,6 +79,7 @@ type Bot struct {
 	Port         int
 	CmdMap       CmdMap
 	DB           *pgx.Conn
+	done         chan bool
 }
 
 func (bot *Bot) New(conn *pgx.Conn) error {
@@ -143,6 +147,8 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 	if err != nil {
 		return err
 	}
+
+	go bot.DailyPosting()
 
 	InfoLogger.Println("Bot init'd")
 	bot.Started = true
@@ -371,4 +377,24 @@ func (bot *Bot) PostDailiesToChannels() error {
 	}
 
 	return nil
+}
+
+func (bot *Bot) DailyPosting() {
+	tick := time.NewTicker(DailyPostPeriod)
+	for {
+		select {
+		case <-bot.done:
+			return
+		case <-tick.C:
+			err := bot.PostDailiesToChannels()
+
+			if err != nil {
+				ErrorLogger.Printf("Error encountered while posting daillies: %v\n", err)
+			}
+		}
+	}
+}
+
+func (bot *Bot) End() {
+	bot.done <- true
 }
