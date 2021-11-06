@@ -13,7 +13,7 @@ var SetupCmd = Cmd{
 	Opts:              nil,
 	DefaultPermission: true,
 	Handler: func(i Interaction, bot *Bot) (InteractionCallback, error) {
-		err := bot.addNewChannel(i.GuildID, i.ChannelID)
+		err := bot.addNewChannel(i.GuildID, i.ChannelID, CHANNEL_TYPE_DAILY)
 
 		if err != nil {
 			return InteractionCallback{}, err
@@ -57,7 +57,7 @@ var RegisterCmd = Cmd{
 
 		leetUser := *i.CmdData.Opts[0].Value
 
-		if err := bot.registerUser(userID, i.GuildID, leetUser); err != nil {
+		if err := bot.registerUser(userID, i.ChannelID, i.GuildID, leetUser); err != nil {
 			return InteractionCallback{}, err
 		}
 
@@ -73,7 +73,7 @@ var RegisterCmd = Cmd{
 var SolvedCmd = Cmd{
 	Type:              CMD_TYPE_CHAT_INPUT,
 	Name:              "solved",
-	Desc:              "Alert the channel that you have solved the problem. Not that we don't trust you but we will check.",
+	Desc:              "Alert the channel that you have solved the problem. Not that we don't trust you, but we will check.",
 	Opts:              nil,
 	DefaultPermission: true,
 	Handler: func(i Interaction, bot *Bot) (InteractionCallback, error) {
@@ -98,7 +98,7 @@ var SolvedCmd = Cmd{
 				},
 			}, nil
 		}
-		prob, err := bot.getDailyProblem(getDate(), channelID)
+		prob, err := bot.getDailyProblem(channelID, false)
 
 		if err != nil {
 			return InteractionCallback{}, err
@@ -113,27 +113,43 @@ var SolvedCmd = Cmd{
 			}, nil
 		}
 
-		solved, err := leetcode.FindIfUserCompletedLeetCodeProblem(*leetcodeUser, prob.Slug)
+		inRecentSubs, err := leetcode.FindIfUserCompletedLeetCodeProblem(*leetcodeUser, prob.Slug)
 
 		if err != nil {
 			return InteractionCallback{}, err
 		}
 
-		if solved {
+		if !inRecentSubs {
 			return InteractionCallback{
 				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
 				Data: &CallbackData{
-					Content: "Solved!",
+					Content: "Doesn't seem like you've solved this one before.",
 				},
 			}, nil
-		} else {
-			return InteractionCallback{
-				Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
-				Data: &CallbackData{
-					Content: "Not solved!",
-				},
-			}, nil
+
 		}
+
+		val, solvedBefore, err := bot.markSolved(prob.Diff*100, userID, i.GuildID, prob.Slug, channelID)
+
+		if err != nil {
+			return InteractionCallback{}, err
+		}
+
+		var msg string
+		if solvedBefore {
+			msg = "It looks like you've solved this problem already. Go outside."
+		} else if val == nil {
+			msg = "You are not registered. Register with '/register {LeetCode username}'"
+		} else {
+			msg = fmt.Sprintf("Solved! You are at %d points.", *val)
+		}
+
+		return InteractionCallback{
+			Type: RESP_TYPE_CHANNEL_MSG_WITH_SOURCE,
+			Data: &CallbackData{
+				Content: msg,
+			},
+		}, nil
 	},
 }
 

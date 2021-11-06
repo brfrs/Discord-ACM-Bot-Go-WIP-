@@ -42,20 +42,20 @@ const (
 	LOG_LEVEL_ERROR   = 3
 )
 
-const DailyPostPeriod = 5 * time.Minute
+const DailyPostPeriod = 12 * time.Hour
 
 func InitLoggers(logLevel int, outfile io.Writer) {
 	if LOG_LEVEL_DEBUG >= logLevel {
 		DebugLogger = log.New(outfile, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 	}
 	if LOG_LEVEL_INFO >= logLevel {
-		InfoLogger = log.New(outfile, "Info: ", log.Ldate|log.Ltime|log.Lshortfile)
+		InfoLogger = log.New(outfile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	}
 	if LOG_LEVEL_WARNING >= logLevel {
-		WarningLogger = log.New(outfile, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+		WarningLogger = log.New(outfile, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
 	}
 	if LOG_LEVEL_ERROR >= logLevel {
-		ErrorLogger = log.New(outfile, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+		ErrorLogger = log.New(outfile, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	}
 }
 
@@ -116,6 +116,7 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 		return err
 	}
 
+	// It is dumb of me to make this the way CmdHandlers are registered to the bot
 	err = bot.RegisterGlobalCmds(GlobalCmds)
 
 	if err != nil {
@@ -142,7 +143,7 @@ func (bot *Bot) New(conn *pgx.Conn) error {
 		return err
 	}
 
-	err = bot.PostDailiesToChannels()
+	err = bot.PostDailiesToChannels(true)
 
 	if err != nil {
 		return err
@@ -312,9 +313,9 @@ func (bot *Bot) RegisterGuildCmds(cmds []Cmd, guildID string) error {
 	return nil
 }
 
-func (bot *Bot) PostDailyToChannel(date, channel string) error {
+func (bot *Bot) PostDailyToChannel(date, channel string, generateProb bool) error {
 	DebugLogger.Printf("Attempting to post daily (%s) problem to channel: %s\n", date, channel)
-	prob, err := bot.getDailyProblem(date, channel)
+	prob, err := bot.getDailyProblem(channel, generateProb)
 
 	if err != nil {
 		return err
@@ -360,8 +361,8 @@ func (bot *Bot) PostDailyToChannel(date, channel string) error {
 	return PostToChannel(channel, bot.Token, msg)
 }
 
-func (bot *Bot) PostDailiesToChannels() error {
-	channels, err := bot.getAllChannels()
+func (bot *Bot) PostDailiesToChannels(generateProb bool) error {
+	channels, err := bot.getDailyChannels()
 	date := getDate()
 
 	DebugLogger.Printf("Today is: %s", date)
@@ -371,7 +372,7 @@ func (bot *Bot) PostDailiesToChannels() error {
 	}
 
 	for _, channel := range channels {
-		if err := bot.PostDailyToChannel(date, channel); err != nil {
+		if err := bot.PostDailyToChannel(date, channel, generateProb); err != nil {
 			return err
 		}
 	}
@@ -386,7 +387,7 @@ func (bot *Bot) DailyPosting() {
 		case <-bot.done:
 			return
 		case <-tick.C:
-			err := bot.PostDailiesToChannels()
+			err := bot.PostDailiesToChannels(true)
 
 			if err != nil {
 				ErrorLogger.Printf("Error encountered while posting daillies: %v\n", err)

@@ -21,12 +21,12 @@ func main() {
 	defer conn.Close(context.Background())
 
 	if err := b.New(conn); err != nil {
-		fmt.Printf("Error: \"%v\"\n", err)
+		bot.ErrorLogger.Printf("Error: \"%v\"\n", err)
 		return
 	}
 
 	defer b.End()
 	err = b.Serve()
 
-	fmt.Printf("Main: \"%v\"", err)
+	bot.ErrorLogger.Printf("Main: \"%v\"", err)
 }
