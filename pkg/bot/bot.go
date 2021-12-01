@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -8,24 +9,12 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
 	"time"
 
 	html2md "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/Netflix/go-env"
 	"github.com/brfrs/Discord-ACM-Bot-Go/pkg/leetcode"
 	"github.com/jackc/pgx/v4"
-)
-
-// Env vars for the app to use
-const (
-	ENV_APP_ID         = "ACM_APP_ID"
-	ENV_APP_PUBLIC_KEY = "ACM_APP_PUBLIC_KEY"
-	ENV_TOKEN_ID       = "ACM_BOT_TOKEN"
-	ENV_PORT           = "ACM_BOT_PORT"
-	ENV_KEY_FILE       = "ACM_BOT_KEY_FILE"
-	ENV_CERT_FILE      = "ACM_BOT_CERT_FILE"
-	ENV_DB_URL         = "ACM_DB_URL"
 )
 
 var (
@@ -71,89 +60,75 @@ var DifficultyToColorCode = map[int]int{
 	leetcode.DIFFICULTY_HARD:   16723284,
 }
 
+// Ugly hack to get unmarshal into a ed25519 way
+type PublicKey ed25519.PublicKey
+
+func (pubkey *PublicKey) UnmarshalEnvironmentValue(data string) error {
+	d, err := hex.DecodeString(data)
+	*pubkey = d
+	return err
+}
+
 type Bot struct {
-	AppID        string
-	Token        string
-	AppPublicKey []byte
-	Started      bool
-	Port         int
-	CmdMap       CmdMap
+	AppID        string    `env:"ACM_APP_ID,required=true"`
+	Token        string    `env:"ACM_BOT_TOKEN,required=true"`
+	AppPublicKey PublicKey `env:"ACM_APP_PUBLIC_KEY,required=true"`
+	Port         int       `env:"ACM_BOT_PORT,default=6267"`
+	DbUri        string    `env:"ACM_BOT_DB_URI,required=true"`
 	DB           *pgx.Conn
+	CmdMap       CmdMap
+	Started      bool
 	done         chan bool
 }
 
-func (bot *Bot) New(conn *pgx.Conn) error {
-	var err error
-	bot.AppID = os.Getenv(ENV_APP_ID)
-	bot.Token = os.Getenv(ENV_TOKEN_ID)
-	bot.AppPublicKey, err = hex.DecodeString(os.Getenv(ENV_APP_PUBLIC_KEY))
-	if err != nil {
-		return err
+func New() (Bot, error) {
+	var bot Bot
+	if _, err := env.UnmarshalFromEnviron(&bot); err != nil {
+		return Bot{}, err
 	}
 
 	bot.CmdMap = make(CmdMap)
-	bot.DB = conn
 
-	bot.Port, err = strconv.Atoi(os.Getenv(ENV_PORT))
-
-	if err != nil {
-		return err
-	}
-
-	if bot.AppID == "" {
-		return fmt.Errorf("missing env var %s", ENV_APP_ID)
-	}
-
-	if bot.Token == "" {
-		return fmt.Errorf("missing env var %s", ENV_TOKEN_ID)
+	var err error
+	if bot.DB, err = pgx.Connect(context.Background(), bot.DbUri); err != nil {
+		return Bot{}, err
 	}
 
 	if len(bot.AppPublicKey) != ed25519.PublicKeySize {
-		return fmt.Errorf("bot public key is not ed25519 public key size. Size of key: %d", len(bot.AppPublicKey))
-	}
-
-	if err != nil {
-		return err
+		return Bot{}, fmt.Errorf("bot public key is not ed25519 public key size. Size of key: %d", len(bot.AppPublicKey))
 	}
 
 	// It is dumb of me to make this the way CmdHandlers are registered to the bot
-	err = bot.RegisterGlobalCmds(GlobalCmds)
-
-	if err != nil {
-		return err
+	if err := bot.RegisterGlobalCmds(GlobalCmds); err != nil {
+		return Bot{}, err
 	}
 
 	guilds, err := bot.getAllGuilds()
-
 	if err != nil {
-		return err
+		return Bot{}, err
 	}
 
 	for _, guild := range guilds {
 		err = bot.RegisterGuildCmds(GuildCmds, guild)
 
 		if err != nil {
-			return err
+			return Bot{}, err
 		}
 	}
 
-	err = bot.GetProblems()
-
-	if err != nil {
-		return err
+	if err := bot.GetProblems(); err != nil {
+		return Bot{}, err
 	}
 
-	err = bot.PostDailiesToChannels(true)
-
-	if err != nil {
-		return err
+	if err := bot.PostDailiesToChannels(true); err != nil {
+		return Bot{}, err
 	}
 
 	go bot.DailyPosting()
 
 	InfoLogger.Println("Bot init'd")
 	bot.Started = true
-	return nil
+	return bot, nil
 }
 
 func verifyInteraction(bot *Bot, header http.Header, body []byte) (bool, error) {
@@ -178,7 +153,7 @@ func verifyInteraction(bot *Bot, header http.Header, body []byte) (bool, error) 
 	timestamp := timestampEntry[0]
 
 	message := append([]byte(timestamp), body...)
-	return ed25519.Verify(bot.AppPublicKey, message, sig), nil
+	return ed25519.Verify([]byte(bot.AppPublicKey), message, sig), nil
 }
 
 func (bot *Bot) handleInteraction(i Interaction, w http.ResponseWriter) error {
@@ -398,4 +373,5 @@ func (bot *Bot) DailyPosting() {
 
 func (bot *Bot) End() {
 	bot.done <- true
+	bot.DB.Close(context.Background())
 }
